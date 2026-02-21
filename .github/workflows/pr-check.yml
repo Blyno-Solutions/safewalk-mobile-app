@@ -1,0 +1,11 @@
+name: Flutter CI
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: subosito/flutter-action@v2
+      - run: flutter pub get
+      - run: flutter analyze  # Fails if code is messy/errors
+      - run: flutter test     # Fails if tests don't pass

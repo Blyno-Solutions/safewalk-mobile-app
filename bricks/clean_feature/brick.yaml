@@ -1,0 +1,9 @@
+name: clean_feature
+description: Production-ready Clean Architecture feature
+version: 0.1.0
+
+vars:
+  name:
+    type: string
+    description: Feature name (e.g. Authentication, UserProfile, etc.)
+    prompt: What is the feature name?

@@ -1,11 +1,192 @@
-name: Flutter CI
-on: [pull_request]
+name: Blyno Solutions Internship Lab CI
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  merge_group:   # ✅ Required for GitHub Merge Queue
+    branches: [ main ]
+
+concurrency:
+  group: internship-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+env:
+  FLUTTER_VERSION: "stable"
+
 jobs:
-  check:
+
+  # 🔎 Branch Name Validation
+  branch-name:
+    name: 🏷️ Validate Branch Name
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
-      - run: flutter pub get
-      - run: flutter analyze  # Fails if code is messy/errors
-      - run: flutter test     # Fails if tests don't pass
+      - name: Validate branch naming convention
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Branch: $BRANCH_NAME"
+
+          if [[ ! "$BRANCH_NAME" =~ ^(feature|bugfix|hotfix|chore|docs)/[a-z0-9._-]+$ ]]; then
+            echo "❌ Invalid branch name."
+            echo "Use: feature/, bugfix/, hotfix/, chore/, docs/"
+            exit 1
+          fi
+
+          echo "✅ Branch name valid"
+
+
+  # 🏷️ Auto Label PR
+  auto-label:
+    name: 🏷️ Auto Label
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+
+
+  quality:
+    name: 🔍 Code Quality
+    runs-on: ubuntu-latest
+    needs: branch-name
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v3
+        with:
+          channel: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Cache Pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Check Formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+
+
+  test:
+    name: 🧪 Testing
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v3
+        with:
+          channel: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Restore Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Tests With Coverage
+        run: flutter test --coverage
+
+      - name: Install lcov + bc
+        run: sudo apt-get update && sudo apt-get install -y lcov bc
+
+      - name: Enforce Coverage ≥ 80%
+        run: |
+          lcov --summary coverage/lcov.info
+          COVERAGE=$(lcov --summary coverage/lcov.info | grep lines | awk '{print $2}' | sed 's/%//')
+
+          echo "Coverage: $COVERAGE%"
+
+          REQUIRED=80
+          if (( $(echo "$COVERAGE < $REQUIRED" | bc -l) )); then
+            echo "❌ Coverage below ${REQUIRED}%"
+            exit 1
+          fi
+
+          echo "✅ Coverage requirement met"
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+
+
+  security:
+    name: 🔐 Security
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: dart
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v3
+        with:
+          channel: ${{ env.FLUTTER_VERSION }}
+
+      - name: Dependency Check
+        run: dart pub outdated --mode=null-safety
+
+
+
+  pr-report:
+    name: 💬 PR Report
+    runs-on: ubuntu-latest
+    needs: [quality, test, security]
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Comment Summary
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: internship-lab-ci
+          message: |
+            ## 🚀 Internship Lab CI Report
+
+            🔍 Code Quality: Passed  
+            🧪 Tests: Passed (≥ 80% coverage)  
+            🔐 Security: Completed  
+
+            Enterprise standards met.
+            Awaiting mentor approval 👩‍🏫

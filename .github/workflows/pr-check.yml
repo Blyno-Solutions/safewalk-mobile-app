@@ -2,11 +2,11 @@ name: Blyno Solutions Internship Lab CI
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
-    branches: [ main ]
-  merge_group:   # ✅ Required for GitHub Merge Queue
-    branches: [ main ]
+    branches: [main]
+  merge_group: # ✅ Required for GitHub Merge Queue
+    branches: [main]
 
 concurrency:
   group: internship-ci-${{ github.ref }}
@@ -21,7 +21,6 @@ env:
   FLUTTER_VERSION: "stable"
 
 jobs:
-
   # 🔎 Branch Name Validation
   branch-name:
     name: 🏷️ Validate Branch Name
@@ -42,7 +41,6 @@ jobs:
 
           echo "✅ Branch name valid"
 
-
   # 🏷️ Auto Label PR
   auto-label:
     name: 🏷️ Auto Label
@@ -54,7 +52,6 @@ jobs:
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
 
-
   quality:
     name: 🔍 Code Quality
     runs-on: ubuntu-latest
@@ -64,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v3
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_VERSION }}
           cache: true
@@ -88,8 +85,6 @@ jobs:
       - name: Analyze
         run: flutter analyze --fatal-infos --fatal-warnings
 
-
-
   test:
     name: 🧪 Testing
     runs-on: ubuntu-latest
@@ -99,7 +94,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v3
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_VERSION }}
           cache: true
@@ -142,8 +137,6 @@ jobs:
           name: coverage
           path: coverage/
 
-
-
   security:
     name: 🔐 Security
     runs-on: ubuntu-latest
@@ -161,14 +154,12 @@ jobs:
         uses: github/codeql-action/analyze@v3
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v3
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_VERSION }}
 
       - name: Dependency Check
         run: dart pub outdated --mode=null-safety
-
-
 
   pr-report:
     name: 💬 PR Report
